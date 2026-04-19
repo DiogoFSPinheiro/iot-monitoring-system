@@ -1,5 +1,14 @@
 #include <Arduino.h>
 #include <Arduino_FreeRTOS.h>
+#include <avr/wdt.h>
+
+// Runs before main() — disables WDT left enabled by Optiboot bootloader.
+void wdt_init() __attribute__((naked)) __attribute__((section(".init3")));
+void wdt_init() {
+    MCUSR = 0;
+    wdt_disable();
+    __asm__ __volatile__ ("ret");
+}
 #include <Wire.h>
 #include <queue.h>
 #include <semphr.h>
@@ -47,7 +56,7 @@ void setup() {
     Wire.begin();
 
     // --- Create FreeRTOS shared objects ---
-    sensor_data_queue = xQueueCreate(8, sizeof(sensor_reading_t));
+    sensor_data_queue = xQueueCreate(4, sizeof(sensor_reading_t));
     i2c_mutex         = xSemaphoreCreateMutex();
 
     if (!sensor_data_queue || !i2c_mutex) {
@@ -59,22 +68,26 @@ void setup() {
     dht22_init();
     pir_init();
 
-    // BH1750 init requires I2C; called before scheduler so no mutex needed.
-    if (!bh1750_init()) {
-        Serial.println(F("WARN: BH1750 init failed — check wiring"));
-    }
+    // BH1750 disabled for testing
+    // if (!bh1750_init()) {
+    //     Serial.println(F("WARN: BH1750 init failed — check wiring"));
+    // }
 
     // --- Create tasks ---
-    // Priority 3 (highest): task_serial — drains the queue and prints output
-    xTaskCreate(task_serial,      "serial", 150, nullptr, 3, nullptr);
-    // Priority 2: sensor tasks
-    xTaskCreate(task_dht22,       "dht22",  128, nullptr, 2, nullptr);
-    xTaskCreate(task_environment, "env",    128, nullptr, 2, nullptr);
+    BaseType_t t1 = xTaskCreate(task_serial,      "serial", 130, nullptr, 3, nullptr);
+    BaseType_t t2 = xTaskCreate(task_dht22,       "dht22",  100, nullptr, 2, nullptr);
+    BaseType_t t3 = xTaskCreate(task_environment, "env",    100, nullptr, 2, nullptr);
+
+    if (t1 != pdPASS || t2 != pdPASS || t3 != pdPASS) {
+        Serial.println(F("FATAL: task creation failed (out of memory)"));
+        while (true) {}
+    }
 
     Serial.print(F("Free RAM after RTOS init:  "));
     Serial.print(free_ram());
     Serial.println(F(" bytes"));
     Serial.println(F("Scheduler starting..."));
+    Serial.flush();
 
     // FreeRTOS scheduler starts automatically when setup() returns
     // (feilipu/FreeRTOS Arduino library behaviour).

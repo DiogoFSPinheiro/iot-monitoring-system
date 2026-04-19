@@ -13,13 +13,16 @@ static constexpr uint8_t LINE_BUF_LEN = 40;
 void task_serial(void *pvParameters) {
     (void)pvParameters;
 
+    Serial.println(F("[DBG] task_serial started"));
+
     sensor_reading_t reading;
     char line[LINE_BUF_LEN];
     char fval[FLOAT_BUF_LEN];
 
     for (;;) {
-        // Block indefinitely until a reading arrives.
-        if (xQueueReceive(sensor_data_queue, &reading, portMAX_DELAY) != pdTRUE) {
+        // Block up to 5 s; print heartbeat if no reading arrives (debug).
+        if (xQueueReceive(sensor_data_queue, &reading, pdMS_TO_TICKS(5000)) != pdTRUE) {
+            Serial.println(F("[DBG] queue empty — waiting for sensor data"));
             continue;
         }
 

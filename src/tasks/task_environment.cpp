@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <Arduino_FreeRTOS.h>
 #include <semphr.h>
 
@@ -15,6 +16,8 @@ static constexpr uint32_t PIR_WARMUP_TICKS = pdMS_TO_TICKS(60000UL);
 
 void task_environment(void *pvParameters) {
     (void)pvParameters;
+
+    Serial.println(F("[DBG] task_environment started"));
 
     TickType_t last_light_read = xTaskGetTickCount();
 
@@ -36,23 +39,22 @@ void task_environment(void *pvParameters) {
             }
         }
 
-        // --- BH1750 (every 1 s) ---
-        if ((now - last_light_read) >= LIGHT_INTERVAL) {
-            last_light_read = now;
-
-            if (xSemaphoreTake(i2c_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-                float lux;
-                if (bh1750_read(&lux)) {
-                    sensor_reading_t reading;
-                    reading.type        = SensorType::LIGHT;
-                    reading.value       = lux;
-                    reading.timestamp_s = ts;
-                    reading._padding    = 0;
-                    xQueueSend(sensor_data_queue, &reading, pdMS_TO_TICKS(100));
-                }
-                xSemaphoreGive(i2c_mutex);
-            }
-        }
+        // BH1750 disabled for testing
+        // if ((now - last_light_read) >= LIGHT_INTERVAL) {
+        //     last_light_read = now;
+        //     if (xSemaphoreTake(i2c_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        //         float lux;
+        //         if (bh1750_read(&lux)) {
+        //             sensor_reading_t reading;
+        //             reading.type        = SensorType::LIGHT;
+        //             reading.value       = lux;
+        //             reading.timestamp_s = ts;
+        //             reading._padding    = 0;
+        //             xQueueSend(sensor_data_queue, &reading, pdMS_TO_TICKS(100));
+        //         }
+        //         xSemaphoreGive(i2c_mutex);
+        //     }
+        // }
 
         vTaskDelay(TASK_PERIOD);
     }

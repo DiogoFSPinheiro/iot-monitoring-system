@@ -1,29 +1,26 @@
 #include "drv_dht22.h"
 #include "../config/pins.h"
 
-#include <DHT.h>
+#include <DHTNEW.h>
 
-static DHT dht(PIN_DHT22, DHT22);
+static DHTNEW dht(PIN_DHT22);
+static bool   last_read_ok = false;
 
 bool dht22_init() {
-    dht.begin();
+    // Do not disable interrupts — feilipu/FreeRTOS WDT resets after 30 ms of cli().
+    dht.setDisableIRQ(false);
     return true;
 }
 
 bool dht22_read_temperature(float *out) {
-    const float val = dht.readTemperature();
-    if (isnan(val)) {
-        return false;
-    }
-    *out = val;
+    last_read_ok = (dht.read() == DHTLIB_OK);
+    if (!last_read_ok) return false;
+    *out = dht.getTemperature();
     return true;
 }
 
 bool dht22_read_humidity(float *out) {
-    const float val = dht.readHumidity();
-    if (isnan(val)) {
-        return false;
-    }
-    *out = val;
+    if (!last_read_ok) return false;
+    *out = dht.getHumidity();
     return true;
 }
