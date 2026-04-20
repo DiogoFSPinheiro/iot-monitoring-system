@@ -25,9 +25,8 @@ bool dht22_read_temperature(float *out);
 /**
  * @brief Read relative humidity from the DHT22.
  *
- * The Adafruit DHT library caches the last measurement, so calling this
- * immediately after dht22_read_temperature() does not trigger a second
- * hardware read.
+ * Returns the value cached by the most recent dht22_read_temperature() call.
+ * Does not trigger a second hardware read.
  *
  * @param[out] out  Relative humidity in percent (0–100).
  * @return true on a valid reading, false if the sensor returns NaN.

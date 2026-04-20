@@ -86,6 +86,34 @@ Calling `Serial.print()` from multiple FreeRTOS tasks causes output corruption. 
 
 ---
 
+## 8. `pulseIn()` silently skips pulses when the pin is already in the target state
+
+`pulseIn(pin, LOW)` doesn't measure the pulse the pin is currently in. It first waits for the pin to go HIGH, then waits for it to go LOW again — meaning if the pin is already LOW, it skips the current pulse and measures the next one.
+
+On the DHT22 protocol, the sensor starts pulling the data line LOW about 20µs after the host releases it. With a `delayMicroseconds(40)` before calling `pulseIn(LOW)`, the sensor has already started its 80µs LOW handshake pulse. `pulseIn` skips it, waits for the next LOW — which is the first data bit. Every subsequent bit is then off by one, and the checksum always fails.
+
+The bug is silent: `read_sensor()` just returns false every time, with no indication of why.
+
+**Fix:** Replace `pulseIn()` with `micros()`-based helpers that work correctly regardless of the pin's current state:
+
+```cpp
+static bool wait_for(uint8_t pin, uint8_t level, uint32_t timeout_us) {
+    uint32_t start = micros();
+    while (digitalRead(pin) != level)
+        if ((micros() - start) >= timeout_us) return false;
+    return true;
+}
+
+static uint32_t measure_pulse(uint8_t pin, uint8_t level, uint32_t timeout_us) {
+    uint32_t start = micros();
+    while (digitalRead(pin) == level)
+        if ((micros() - start) >= timeout_us) return 0;
+    return micros() - start;
+}
+```
+
+---
+
 ## Stack
 
 - **Board:** Arduino Uno R3 (ATmega328P, 2KB SRAM)

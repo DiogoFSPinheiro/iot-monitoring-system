@@ -25,6 +25,10 @@ void task_dht22(void *pvParameters) {
         float hum = NAN;
         bool hum_ok = dht22_read_humidity(&hum);
 
+        if (!temp_ok) {
+            Serial.println(F("[DBG] DHT22 read failed — check wiring (VCC, GND, DATA pin 2, pull-up)"));
+        }
+
         if (temp_ok) {
             reading.type  = SensorType::TEMPERATURE;
             reading.value = temp;
