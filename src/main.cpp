@@ -54,9 +54,6 @@ void setup() {
     Serial.println(F(" bytes"));
 
     Wire.begin();
-    // Auto-reset TWI hardware if a transaction stalls (e.g. sensor holds SDA low).
-    // 3 ms is plenty for a full 32-byte burst at 100 kHz; avoids infinite blocking.
-    Wire.setWireTimeout(3000 /* µs */, true /* reset on timeout */);
 
     // --- Create FreeRTOS shared objects ---
     sensor_data_queue = xQueueCreate(4, sizeof(sensor_reading_t));

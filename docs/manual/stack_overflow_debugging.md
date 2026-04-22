@@ -1,17 +1,25 @@
-# Stack Overflow & I2C Lockup Debugging — Lessons Learned
+# Stack Overflow Debugging — Lessons Learned
 
-This document covers the three bugs found while enabling the BH1750 light sensor
-on a FreeRTOS / Arduino Uno system. Each bug was silent, took time to manifest,
-and required systematic elimination to identify.
+This document covers the bugs found while enabling the BH1750 light sensor on a
+FreeRTOS / Arduino Uno system. Each bug was silent, took time to manifest, and
+required systematic elimination to identify.
 
 ---
 
-## Bug 1 — task_environment stack overflow (crashed at ~24s)
+## Root cause — everything was the same problem
+
+All crashes had a single underlying cause: **stack sizes were specified in bytes
+but mistakenly treated as words**, leaving every task with far less stack than
+intended. The crashes appeared at different times depending on how quickly each
+task's overflow corrupted critical memory.
+
+---
+
+## Bug 1 — task_environment stack too small (crashed at ~24s)
 
 ### Symptom
 System printed sensor readings for ~24 seconds then completely froze. No output
-from any task. No reset banner. `uxTaskGetStackHighWaterMark()` was not yet in
-place to catch it.
+from any task. No reset banner.
 
 ### Root cause
 `task_environment` was allocated **100 bytes** of stack. Before BH1750 was
@@ -57,12 +65,10 @@ Never assume the "words" convention from documentation written for 32-bit system
 
 ---
 
-## Bug 3 — task_serial dtostrf stack overflow (crashed at ~30s)
+## Bug 3 — task_serial stack too small (crashed at ~30s)
 
 ### Symptom
 System ran for ~30 seconds then froze completely — all tasks silent, no output.
-`uxTaskGetStackHighWaterMark()` for task_serial was never collected because
-the crash happened before the measurement stabilised.
 
 ### Root cause
 `task_serial` was allocated **130 bytes**. Stack usage breakdown:
@@ -79,16 +85,10 @@ Subtotal locals:                                  58 bytes
 Available for ALL function calls:    130 - 35 - 58 = 37 bytes
 ```
 
-`dtostrf()` (float → string conversion) on AVR calls deep into the avr-libc
-float library (`__dtoa_engine` and friends). It needs **80–120 bytes** of call
-stack depth alone. Every single float print was overflowing by ~50–80 bytes,
-silently corrupting adjacent memory.
-
-### Why it took 30 seconds to crash
-The corruption was not immediate. Each call corrupted a little more. The system
-accumulated ~15 reads × 2 floats = 30 stack overflows before a critical structure
-(FreeRTOS TCB, queue handle, or kernel data) was overwritten enough to break
-execution.
+With only 37 bytes left for function calls (`xQueueReceive`, `dtostrf`,
+`snprintf`, `Serial.println`), the stack was overflowing into adjacent memory
+on every float print cycle. The crash at ~30 seconds was the same root cause as
+Bug 1 — too few bytes.
 
 ### Fix — two-part
 
@@ -105,57 +105,34 @@ This frees 50 bytes of stack for function call chains.
 After both fixes, measured HWM = **83 bytes remaining** — comfortable headroom.
 
 ### Key lesson
-`dtostrf()` on AVR is stack-hungry. Any task that formats floats needs generous
-stack. Moving large local buffers to `static` is a valid and common AVR technique
-to reduce stack pressure — safe as long as the task is a singleton (which FreeRTOS
-tasks always are).
+Moving large local `char[]` buffers to `static` is a valid AVR technique to
+reduce stack pressure — safe as long as the task is a singleton (which FreeRTOS
+tasks always are). It trades stack bytes for BSS bytes.
 
 ---
 
-## Bug 4 — BH1750 I2C bus lockup (caused freeze after recovery)
+## What was NOT a bug — Wire.setWireTimeout
 
-### Symptom
-Even after fixing the stack issues, the system occasionally froze. Output would
-stop mid-run with no crash banner. Sometimes `LIGHT` readings would be missing
-for 2–3 seconds and then return; other times the freeze was permanent.
+During debugging, missing LIGHT readings were observed and a Wire I2C lockup
+was suspected. `Wire.setWireTimeout(3000, true)` was added to prevent
+`Wire.requestFrom()` from blocking forever.
 
-### Root cause
-The Arduino Wire library on AVR uses the hardware TWI (Two-Wire Interface)
-peripheral. `Wire.requestFrom()` waits in a busy-loop for the TWINT flag
-(TWI interrupt flag) to be set by the hardware. If the I2C bus gets into a bad
-state (noise, glitch, sensor not responding), TWINT never fires and the call
-blocks **forever**. The task holds `i2c_mutex` while blocked, and `task_serial`
-has nothing to print — the whole system appears frozen.
+**Tested and disproved:** After removing `Wire.setWireTimeout`, the system ran
+stably for 900+ seconds. The missing LIGHT readings and freezes were caused
+entirely by the stack overflows above, not by an I2C hardware issue.
 
-### Fix
-Call `Wire.setWireTimeout()` once in `setup()`:
-```cpp
-Wire.begin();
-Wire.setWireTimeout(3000 /* µs */, true /* reset TWI hardware on timeout */);
-```
-After 3ms with no response, Wire gives up, resets the TWI peripheral, and
-returns. `bh1750_read()` returns `false`, the mutex is released, and the task
-continues normally. Missing a single light reading is far better than freezing.
+`Wire.setWireTimeout` is still a reasonable **defensive measure** for production
+I2C code, but it was not needed to fix the crashes in this project.
 
-In `bh1750_read()`, clear the timeout flag so subsequent reads are not poisoned:
-```cpp
-bool bh1750_read(float *out) {
-    const float lux = light_meter.readLightLevel();
-    if (lux < 0.0f) {
-        Wire.clearWireTimeoutFlag();
-        return false;
-    }
-    *out = lux;
-    return true;
-}
-```
+---
 
-### What NOT to do — the failed I2C bus recovery attempt
-A "proper" I2C bus recovery (9 SCL clock pulses to force the slave to release SDA,
-then a STOP condition, then Wire.begin()) was implemented but made things **worse**:
+## What made debugging harder — the failed I2C recovery attempt
+
+While chasing the suspected I2C lockup, a full bus recovery function was added
+to `bh1750_read()`:
 
 ```cpp
-// This looked correct but crashed the system faster:
+// This looked correct but crashed the system faster (at ~8s):
 static void recover_i2c_bus() {
     TWCR = 0;
     pinMode(PIN_SDA, INPUT_PULLUP);
@@ -166,18 +143,11 @@ static void recover_i2c_bus() {
 }
 ```
 
-The recovery function called `pinMode`, `digitalWrite`, and `Wire.begin()` — a
-deep call chain that itself caused a stack overflow in `task_environment` (which
-still had its wire-reading call on the stack at that point). System crashed at
-~8 seconds instead of ~30.
-
-**Lesson:** A recovery path that uses more stack than the normal path can make
-things catastrophically worse on memory-constrained systems. Measure first.
-
-### Key lesson
-Always set `Wire.setWireTimeout()` on systems where I2C is critical. The default
-(no timeout) means a single bad transaction hangs the entire task forever. 3ms
-is enough for any standard I2C transaction at 100kHz.
+This function called `pinMode`, `digitalWrite`, and `Wire.begin()` — a deeper
+call chain than the normal read path, added on top of an already-overflowing
+stack. System crashed faster, not slower. The lesson: on memory-constrained
+systems, a "recovery" path that uses more stack than the happy path can make
+things catastrophically worse.
 
 ---
 
@@ -186,16 +156,15 @@ is enough for any standard I2C transaction at 100kHz.
 ### Tools used
 
 **`uxTaskGetStackHighWaterMark(nullptr)`**
-Returns the minimum number of bytes that were ever free on the task's stack
-(the "watermark" — lowest the stack has ever been). Call it after the task has
-done its most complex operation at least once.
+Returns the minimum number of bytes that were ever free on the task's stack.
+Call it after the task has done its most complex operation at least once.
 
 ```cpp
 Serial.print(F("[DBG] stack HWM (bytes): "));
 Serial.println(uxTaskGetStackHighWaterMark(nullptr));
 ```
-A value near zero means you are about to overflow. A value of 20–40 bytes is
-dangerously low. Aim for at least 30–40 bytes of headroom on AVR.
+A value near zero means you are about to overflow. Aim for at least 30–40 bytes
+of headroom on AVR.
 
 **`free_ram()` helper in setup()**
 ```cpp
@@ -211,25 +180,22 @@ static uint16_t free_ram() {
 }
 ```
 Measures the gap between the heap top and the main stack. Useful for catching
-out-of-memory before the scheduler starts. Measure before and after RTOS init.
+out-of-memory before the scheduler starts.
 
 ### Diagnostic pattern
 
 | Symptom | Likely cause |
 |---|---|
 | Freeze after N seconds, no reset banner | Stack overflow accumulating corruption |
-| Freeze immediately, L LED blinking fast | Out of memory — task creation failed silently or scheduler crashed |
+| Freeze immediately, L LED blinking fast | Out of memory — scheduler failed to start |
 | Freeze after N seconds, then restart banner | WDT reset (check interrupt-disabled duration) |
-| LIGHT readings missing for a few seconds, then back | Wire I2C timeout firing and recovering |
-| LIGHT missing permanently + all output stops | Wire blocked forever (no timeout set) |
 
 ### Order of investigation
 1. Add HWM prints to ALL tasks — measure after the first real work cycle.
-2. Check `free_ram()` before and after RTOS init — budget for idle task too.
-3. If HWM is below 30 bytes, increase stack before investigating further.
+2. Check `free_ram()` before and after RTOS init.
+3. If HWM is below 30 bytes, increase stack before investigating anything else.
 4. Add a 5s `xQueueReceive` timeout with a heartbeat print in task_serial — if
    the heartbeat fires, task_serial is alive but starved of data (producer hung).
-5. Use `Wire.setWireTimeout()` from the start on any I2C project.
 
 ---
 

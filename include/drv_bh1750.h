@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <BH1750.h>
 
 /**
  * @brief Initialise the BH1750FVI light sensor.

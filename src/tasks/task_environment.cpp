@@ -57,7 +57,7 @@ void task_environment(void *pvParameters) {
         }
 
         if (!hwm_printed && ts >= 3) {
-            Serial.print(F("[DBG] env stack HWM (words): "));
+            Serial.print(F("[DBG] env stack HWM (bytes): "));
             Serial.println(uxTaskGetStackHighWaterMark(nullptr));
             hwm_printed = true;
         }
