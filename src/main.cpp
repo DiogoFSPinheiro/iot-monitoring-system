@@ -54,6 +54,9 @@ void setup() {
     Serial.println(F(" bytes"));
 
     Wire.begin();
+    // Auto-reset TWI hardware if a transaction stalls (e.g. sensor holds SDA low).
+    // 3 ms is plenty for a full 32-byte burst at 100 kHz; avoids infinite blocking.
+    Wire.setWireTimeout(3000 /* µs */, true /* reset on timeout */);
 
     // --- Create FreeRTOS shared objects ---
     sensor_data_queue = xQueueCreate(4, sizeof(sensor_reading_t));
@@ -68,15 +71,14 @@ void setup() {
     dht22_init();
     pir_init();
 
-    // BH1750 disabled for testing
-    // if (!bh1750_init()) {
-    //     Serial.println(F("WARN: BH1750 init failed — check wiring"));
-    // }
+    if (!bh1750_init()) {
+        Serial.println(F("WARN: BH1750 init failed — check wiring"));
+    }
 
     // --- Create tasks ---
-    BaseType_t t1 = xTaskCreate(task_serial,      "serial", 130, nullptr, 3, nullptr);
-    BaseType_t t2 = xTaskCreate(task_dht22,       "dht22",  100, nullptr, 2, nullptr);
-    BaseType_t t3 = xTaskCreate(task_environment, "env",    100, nullptr, 2, nullptr);
+    BaseType_t t1 = xTaskCreate(task_serial,      "serial", 160, nullptr, 3, nullptr);
+    BaseType_t t2 = xTaskCreate(task_dht22,       "dht22",  128, nullptr, 2, nullptr);
+    BaseType_t t3 = xTaskCreate(task_environment, "env",    128, nullptr, 2, nullptr);
 
     if (t1 != pdPASS || t2 != pdPASS || t3 != pdPASS) {
         Serial.println(F("FATAL: task creation failed (out of memory)"));

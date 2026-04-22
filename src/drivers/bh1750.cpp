@@ -1,6 +1,7 @@
 #include "drv_bh1750.h"
 
 #include <BH1750.h>
+#include <Wire.h>
 
 static BH1750 light_meter;
 
@@ -11,9 +12,12 @@ bool bh1750_init() {
 }
 
 bool bh1750_read(float *out) {
-    // readLightLevel() returns -1.0 on error (sensor not ready / NACK).
     const float lux = light_meter.readLightLevel();
     if (lux < 0.0f) {
+        // Clear the timeout flag so subsequent reads are not poisoned.
+        // Wire.setWireTimeout(, true) already reset the TWI hardware;
+        // BH1750 recovers on its own once the bus goes idle.
+        Wire.clearWireTimeoutFlag();
         return false;
     }
     *out = lux;

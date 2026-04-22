@@ -20,6 +20,7 @@ void task_environment(void *pvParameters) {
     Serial.println(F("[DBG] task_environment started"));
 
     TickType_t last_light_read = xTaskGetTickCount();
+    bool hwm_printed = false;
 
     for (;;) {
         const TickType_t now = xTaskGetTickCount();
@@ -39,22 +40,27 @@ void task_environment(void *pvParameters) {
             }
         }
 
-        // BH1750 disabled for testing
-        // if ((now - last_light_read) >= LIGHT_INTERVAL) {
-        //     last_light_read = now;
-        //     if (xSemaphoreTake(i2c_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-        //         float lux;
-        //         if (bh1750_read(&lux)) {
-        //             sensor_reading_t reading;
-        //             reading.type        = SensorType::LIGHT;
-        //             reading.value       = lux;
-        //             reading.timestamp_s = ts;
-        //             reading._padding    = 0;
-        //             xQueueSend(sensor_data_queue, &reading, pdMS_TO_TICKS(100));
-        //         }
-        //         xSemaphoreGive(i2c_mutex);
-        //     }
-        // }
+        if ((now - last_light_read) >= LIGHT_INTERVAL) {
+            last_light_read = now;
+            if (xSemaphoreTake(i2c_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                float lux;
+                if (bh1750_read(&lux)) {
+                    sensor_reading_t reading;
+                    reading.type        = SensorType::LIGHT;
+                    reading.value       = lux;
+                    reading.timestamp_s = ts;
+                    reading._padding    = 0;
+                    xQueueSend(sensor_data_queue, &reading, pdMS_TO_TICKS(100));
+                }
+                xSemaphoreGive(i2c_mutex);
+            }
+        }
+
+        if (!hwm_printed && ts >= 3) {
+            Serial.print(F("[DBG] env stack HWM (words): "));
+            Serial.println(uxTaskGetStackHighWaterMark(nullptr));
+            hwm_printed = true;
+        }
 
         vTaskDelay(TASK_PERIOD);
     }

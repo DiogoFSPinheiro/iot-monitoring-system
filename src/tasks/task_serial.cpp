@@ -15,9 +15,13 @@ void task_serial(void *pvParameters) {
 
     Serial.println(F("[DBG] task_serial started"));
 
+    // Static: keeps 50 bytes off the task stack so dtostrf's deep call chain
+    // has room. Safe because only task_serial ever touches these.
+    static char line[LINE_BUF_LEN];
+    static char fval[FLOAT_BUF_LEN];
+
     sensor_reading_t reading;
-    char line[LINE_BUF_LEN];
-    char fval[FLOAT_BUF_LEN];
+    bool hwm_printed = false;
 
     for (;;) {
         // Block up to 5 s; print heartbeat if no reading arrives (debug).
@@ -55,5 +59,11 @@ void task_serial(void *pvParameters) {
         }
 
         Serial.println(line);
+
+        if (!hwm_printed) {
+            Serial.print(F("[DBG] serial stack HWM (bytes): "));
+            Serial.println(uxTaskGetStackHighWaterMark(nullptr));
+            hwm_printed = true;
+        }
     }
 }

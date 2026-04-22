@@ -12,6 +12,8 @@ void task_dht22(void *pvParameters) {
 
     vTaskDelay(pdMS_TO_TICKS(2000)); // let scheduler settle + DHT22 warm-up
 
+    bool hwm_printed = false;
+
     for (;;) {
         const uint16_t ts =
             static_cast<uint16_t>(xTaskGetTickCount() / configTICK_RATE_HZ);
@@ -38,6 +40,12 @@ void task_dht22(void *pvParameters) {
             reading.type  = SensorType::HUMIDITY;
             reading.value = hum;
             xQueueSend(sensor_data_queue, &reading, pdMS_TO_TICKS(100));
+        }
+
+        if (!hwm_printed) {
+            Serial.print(F("[DBG] dht22 stack HWM (bytes): "));
+            Serial.println(uxTaskGetStackHighWaterMark(nullptr));
+            hwm_printed = true;
         }
 
         vTaskDelay(READ_INTERVAL);
