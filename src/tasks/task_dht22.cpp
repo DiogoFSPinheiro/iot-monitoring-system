@@ -10,7 +10,7 @@ void task_dht22(void *pvParameters)
 
     vTaskDelay(pdMS_TO_TICKS(2000)); // let scheduler settle + DHT22 warm-up
 
-    bool hwm_printed = false;
+    //bool hwm_printed = false;
 
     for (;;)
     {
@@ -26,8 +26,8 @@ void task_dht22(void *pvParameters)
         float hum = NAN;
         bool hum_ok = dht22_read_humidity(&hum);
 
-        if (!temp_ok)
-            Serial.println(F("[DBG] DHT22 read failed — check wiring (VCC, GND, DATA pin 2, pull-up)"));
+        //if (!temp_ok)
+        //    Serial.println(F("[DBG] DHT22 read failed — check wiring (VCC, GND, DATA pin 2, pull-up)"));
 
         if (temp_ok)
         {
@@ -42,12 +42,12 @@ void task_dht22(void *pvParameters)
             xQueueSend(sensor_data_queue, &reading, pdMS_TO_TICKS(100));
         }
 
-        if (!hwm_printed)
-        {
-            Serial.print(F("[DBG] dht22 stack HWM (bytes): "));
-            Serial.println(uxTaskGetStackHighWaterMark(nullptr));
-            hwm_printed = true;
-        }
+        //if (!hwm_printed)
+        //{
+        //    Serial.print(F("[DBG] dht22 stack HWM (bytes): "));
+        //    Serial.println(uxTaskGetStackHighWaterMark(nullptr));
+        //    hwm_printed = true;
+        //}
 
         vTaskDelay(READ_INTERVAL);
     }

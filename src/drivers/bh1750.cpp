@@ -1,4 +1,5 @@
 #include "drv_bh1750.h"
+#include <util/delay.h>
 
 // Spin until TWINT is set, or timeout. Returns false on timeout.
 static bool twi_wait()

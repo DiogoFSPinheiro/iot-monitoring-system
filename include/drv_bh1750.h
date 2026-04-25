@@ -3,7 +3,6 @@
 #include <stdbool.h>
 
 #include <avr/io.h>
-#include <util/delay.h>
 
 #define BH1750_ADDR     0x23
 #define BH1750_POWER_ON 0x01

@@ -1,14 +1,6 @@
 #include <Arduino.h>
 #include <Arduino_FreeRTOS.h>
 #include <avr/wdt.h>
-
-// Runs before main() — disables WDT left enabled by Optiboot bootloader.
-void wdt_init() __attribute__((naked)) __attribute__((section(".init3")));
-void wdt_init() {
-    MCUSR = 0;
-    wdt_disable();
-    __asm__ __volatile__ ("ret");
-}
 #include <queue.h>
 #include <semphr.h>
 
@@ -17,6 +9,15 @@ void wdt_init() {
 #include "drv_dht22.h"
 #include "drv_bh1750.h"
 #include "drv_pir.h"
+
+// Runs before main() — disables WDT left enabled by Optiboot bootloader.
+void wdt_init() __attribute__((naked)) __attribute__((section(".init3")));
+void wdt_init() {
+    MCUSR = 0;
+    wdt_disable();
+    __asm__ __volatile__ ("ret");
+}
+
 
 // Forward declarations — implementations live in src/tasks/
 void task_dht22(void *pvParameters);

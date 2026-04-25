@@ -14,10 +14,10 @@ void task_environment(void *pvParameters)
 {
     (void)pvParameters;
 
-    Serial.println(F("[DBG] task_environment started"));
+    //Serial.println(F("[DBG] task_environment started"));
 
     TickType_t last_light_read = xTaskGetTickCount();
-    bool hwm_printed = false;
+    //bool hwm_printed = false;
 
     for (;;)
     {
@@ -59,12 +59,12 @@ void task_environment(void *pvParameters)
             }
         }
 
-        if (!hwm_printed && ts >= 3)
-        {
-            Serial.print(F("[DBG] env stack HWM (bytes): "));
-            Serial.println(uxTaskGetStackHighWaterMark(nullptr));
-            hwm_printed = true;
-        }
+        //if (!hwm_printed && ts >= 3)
+        //{
+        //    Serial.print(F("[DBG] env stack HWM (bytes): "));
+        //    Serial.println(uxTaskGetStackHighWaterMark(nullptr));
+        //    hwm_printed = true;
+        //}
 
         vTaskDelay(TASK_PERIOD);
     }
