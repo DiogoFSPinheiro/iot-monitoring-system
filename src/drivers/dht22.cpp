@@ -1,10 +1,6 @@
 #include "drv_dht22.h"
 #include "../config/pins.h"
 
-#include <avr/io.h>
-#include <util/delay.h>
-#include <Arduino_FreeRTOS.h>
-
 static float s_temp    = 0.0f;
 static float s_hum     = 0.0f;
 static bool  s_last_ok = false;

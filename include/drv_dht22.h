@@ -2,6 +2,11 @@
 
 #include <stdbool.h>
 
+#include <avr/io.h>
+#include <util/delay.h>
+#include <Arduino_FreeRTOS.h>
+#include <Arduino.h>
+
 /**
  * @brief Initialise the DHT22 sensor.
  *

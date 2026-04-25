@@ -18,7 +18,7 @@
  * @brief Initialise the BH1750FVI light sensor.
  *
  * Configures continuous high-resolution mode (1 lux resolution, 120 ms
- * measurement time).  Wire.begin() must have been called before this.
+ * measurement time). Uses direct TWI register access — no Wire library needed.
  *
  * Call once from setup() before the FreeRTOS scheduler starts.
  * The caller must hold i2c_mutex while calling this function, or call it

@@ -10,7 +10,7 @@
 /**
  * @brief Queue shared between sensor tasks and task_serial.
  *
- * Capacity: 8 items × sizeof(sensor_reading_t) = 64 bytes.
+ * Capacity: 4 items × sizeof(sensor_reading_t) = 32 bytes.
  * Defined in main.cpp.
  */
 extern QueueHandle_t sensor_data_queue;
