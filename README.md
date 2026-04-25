@@ -1,6 +1,6 @@
 # IoT Environmental Monitoring Station
 
-> FreeRTOS firmware for Arduino Uno R3 — concurrent multi-sensor environmental monitoring over Serial. (Work in progress)
+> FreeRTOS firmware for Arduino Uno R3 — concurrent multi-sensor environmental monitoring over Serial.
 
 ![Platform](https://img.shields.io/badge/platform-Arduino%20Uno%20R3-00979D?logo=arduino&logoColor=white)
 ![RTOS](https://img.shields.io/badge/RTOS-FreeRTOS-green)
@@ -122,3 +122,8 @@ The `docs/manual/` directory contains notes written during development — real 
 ## License
 
 [MIT](LICENSE) — DiogoFSPinheiro
+
+## Next steps
+
+- [ ] Raspberry Pi as data receiver
+- [ ] Binary serial protocol with CRC8 for Raspberry Pi communication
