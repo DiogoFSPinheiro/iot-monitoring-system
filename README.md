@@ -119,6 +119,18 @@ The `docs/manual/` directory contains notes written during development — real 
 
 ---
 
+## Documentation
+
+API documentation is generated with [Doxygen](https://www.doxygen.nl/). From the project root:
+
+```bash
+doxygen Doxyfile
+```
+
+Then open `docs/doxygen/html/index.html` in a browser to view the generated docs.
+
+---
+
 ## License
 
 [MIT](LICENSE) — DiogoFSPinheiro
